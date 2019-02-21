@@ -27,6 +27,7 @@ import net.sf.jasperreports.engine.JasperCompileManager;
 import net.sf.jasperreports.engine.JasperReport;
 import net.sf.jasperreports.engine.data.JRBeanCollectionDataSource;
 import net.sf.jasperreports.engine.design.JasperDesign;
+import net.sf.jasperreports.engine.util.JRLoader;
 import net.sf.jasperreports.engine.xml.JRXmlLoader;
 
 @Controller
@@ -37,13 +38,14 @@ public class GreetingController {
 	private UserService userService;
 
 	private final String invoice_template_path = "/report2.jrxml";
+	private final String invoice_template_path2 = "/report2.jasper";
 
 	public void generateInvoiceFor() throws IOException {
 		File pdfFile = File.createTempFile("my-invoice", ".pdf");
 		log.info(String.format("File : %s", pdfFile.getAbsolutePath()));
 		try (FileOutputStream pos = new FileOutputStream(pdfFile)) {
 			// Load the invoice jrxml template.
-			final JasperReport report = loadTemplate();
+			final JasperReport report = loadTemplate2();
 			// Create parameters map.
 			final Map<String, Object> parameters = new HashMap<String, Object>();
 
@@ -62,8 +64,13 @@ public class GreetingController {
 		}
 	}
 
-	private JasperReport loadTemplate() throws JRException {
+	private JasperReport loadTemplate2() throws JRException {
+		log.info(String.format("Invoice template path : %s", invoice_template_path2));
+		final InputStream reportInputStream = getClass().getResourceAsStream(invoice_template_path2);
+		return (JasperReport) JRLoader.loadObject(reportInputStream);
+	}
 
+	private JasperReport loadTemplate() throws JRException {
 		log.info(String.format("Invoice template path : %s", invoice_template_path));
 
 		final InputStream reportInputStream = getClass().getResourceAsStream(invoice_template_path);
