@@ -1,7 +1,6 @@
 package com.example.demo4.web;
 
-import java.io.File;
-import java.io.FileOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -11,6 +10,10 @@ import java.util.Map;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.ui.jasperreports.JasperReportsUtils;
@@ -40,36 +43,24 @@ public class GreetingController {
 	private final String invoice_template_path = "/report2.jrxml";
 	private final String invoice_template_path2 = "/report2.jasper";
 
-	public void generateInvoiceFor() throws IOException {
-		File pdfFile = File.createTempFile("my-invoice", ".pdf");
-		log.info(String.format("File : %s", pdfFile.getAbsolutePath()));
-		try (FileOutputStream pos = new FileOutputStream(pdfFile)) {
-			// Load the invoice jrxml template.
-			final JasperReport report = loadTemplate2();
-			// Create parameters map.
-			final Map<String, Object> parameters = new HashMap<String, Object>();
-
-			final ArrayList<Data> list = new ArrayList<Data>();
-			final Data data = new Data();
-			data.setId(101L);
-			data.setName("Test Me");
-			data.setPrice(12345);
-			list.add(data);
-			final JRBeanCollectionDataSource dataSource = new JRBeanCollectionDataSource(list);
-
-			// Render the PDF file
+	public byte[] generatePDF(String template, JRBeanCollectionDataSource dataSource,
+			Map<String, Object> parameters) {
+		try (ByteArrayOutputStream pos = new ByteArrayOutputStream()) {
+			final JasperReport report = loadJasperTemplate(template);
 			JasperReportsUtils.renderAsPdf(report, parameters, dataSource, pos);
-		} catch (final Exception e) {
-			log.error(String.format("An error occured during PDF creation: %s", e));
+			return pos.toByteArray();
+		} catch (Exception e) {
+			throw new RuntimeException("Cannot create PDF", e);
 		}
 	}
 
-	private JasperReport loadTemplate2() throws JRException {
-		log.info(String.format("Invoice template path : %s", invoice_template_path2));
-		final InputStream reportInputStream = getClass().getResourceAsStream(invoice_template_path2);
+	private JasperReport loadJasperTemplate(String template) throws JRException {
+		log.info(String.format("Invoice template path : %s", template));
+		final InputStream reportInputStream = getClass().getResourceAsStream(template);
 		return (JasperReport) JRLoader.loadObject(reportInputStream);
 	}
 
+	@SuppressWarnings("unused")
 	private JasperReport loadTemplate() throws JRException {
 		log.info(String.format("Invoice template path : %s", invoice_template_path));
 
@@ -93,10 +84,32 @@ public class GreetingController {
 	@GetMapping("/kugc")
 	public String kugc(@RequestParam(name = "id", required = false, defaultValue = "M0032") String id, Model model)
 			throws IOException {
-		generateInvoiceFor();
-
 		final Kugc kugc = userService.findKugcById(id);
 		model.addAttribute("name", kugc.getKugc_cgcid() + " - " + kugc.getKugc_cgcname());
 		return "kugc";
+	}
+
+	@GetMapping("/pdf")
+	public ResponseEntity<byte[]> pdf() {
+		final ArrayList<Data> list = new ArrayList<Data>();
+		final Data data = new Data();
+		data.setId(101L);
+		data.setName("Test Me");
+		data.setPrice(12345);
+		list.add(data);
+		list.add(data);
+		list.add(data);
+		list.add(data);
+		final JRBeanCollectionDataSource dataSource = new JRBeanCollectionDataSource(list);
+		final byte[] bytes = generatePDF(invoice_template_path2, dataSource, new HashMap<String, Object>());
+
+		final HttpHeaders headers = new HttpHeaders();
+	    headers.setContentType(MediaType.parseMediaType("application/pdf"));
+	    final String filename = "mydoc.pdf";
+	    headers.add("Content-Disposition", "inline;filename=" + filename);
+	    headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
+	    ResponseEntity<byte[]> response = new ResponseEntity<byte[]>(
+	            bytes, headers, HttpStatus.OK);
+	    return response;
 	}
 }
